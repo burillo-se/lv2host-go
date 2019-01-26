@@ -342,9 +342,9 @@ bool LV2Host::setPluginParameter(unsigned int index, std::string sym, float valu
     return plugin.setParameter(sym, value);
 }
 
-void LV2Host::processBuffer(void *left, void *right, unsigned int nSamples)
+void LV2Host::processBuffer(float *left, float *right, unsigned int nSamples)
 {
-    float *ptrs[] = {(float*)left, (float*)right};
+    float *ptrs[] = {left, right};
 
     for (auto &plugin : plugins) {
         int i_idx = 0, o_idx = 0;

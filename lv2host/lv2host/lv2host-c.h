@@ -91,7 +91,7 @@ int lv2host_set_plugin_parameter(CLV2Host host, unsigned int index, const char *
  * samples of the entire processed buffer. Latency compensation only needs
  * to be done at start and end of stream, not per call!
  */
-void lv2host_process_buffer(CLV2Host host, void *left, void *right, unsigned int samples);
+void lv2host_process_buffer(CLV2Host host, float *left, float *right, unsigned int samples);
 
 #ifdef __cplusplus
 }

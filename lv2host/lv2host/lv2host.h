@@ -59,7 +59,7 @@ public:
     void listPluginParameters(unsigned int index);
     bool addPluginInstance(std::string uri);
     bool setPluginParameter(unsigned int index, std::string sym, float value);
-    void processBuffer(void *left, void *right, unsigned int nSamples);
+    void processBuffer(float *left, float *right, unsigned int nSamples);
 private:
     void recalculateLatency();
     Lilv::World world;

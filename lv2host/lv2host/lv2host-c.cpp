@@ -75,7 +75,7 @@ int lv2host_set_plugin_parameter(CLV2Host host, unsigned int index, const char *
     return h->setPluginParameter(index, sym, value) ? 0 : -1;
 }
 
-void lv2host_process_buffer(CLV2Host host, void *left, void *right, unsigned int samples)
+void lv2host_process_buffer(CLV2Host host, float *left, float *right, unsigned int samples)
 {
     LV2Host::LV2Host *h = (LV2Host::LV2Host *)host;
     h->processBuffer(left, right, samples);
