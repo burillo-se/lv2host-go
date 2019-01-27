@@ -131,6 +131,11 @@ LV2PluginInstance::LV2PluginInstance(Lilv::World &world, Lilv::Plugin plugin, do
 
             data->index = pi;
             data->control_data = default_values[pi];
+
+            // control input ports are the only ones which accept parameters
+            data->acceptsParameters = true;
+            data->min = min_values[pi];
+            data->max = max_values[pi];
             // connect port to data
 
             instance.connect_port(pi, &data->control_data);
@@ -275,6 +280,22 @@ bool LV2PluginInstance::setParameter(std::string sym, float value)
         if (pdata->port.me != p.me) {
             continue;
         }
+        // this is our port, but not all ports are supposed to
+        // accept values, so check if we can
+        if (!pdata->acceptsParameters) {
+            std::cerr << "port does not accept parameters" << std::endl;
+            return false;
+        }
+        // port accepts parameters, but is our parameter in range?
+        if (value < pdata->min) {
+            std::cerr << "parameter " << value << " is lower than minimum " << pdata->min << std::endl;
+            return false;
+        }
+        if (value > pdata->max) {
+            std::cerr << "parameter " << value << " is higher than maximum " << pdata->max << std::endl;
+            return false;
+        }
+        // we're OK to use this value!
         pdata->control_data = value;
         return true;
     }

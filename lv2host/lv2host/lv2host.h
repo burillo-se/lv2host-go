@@ -13,8 +13,12 @@ namespace LV2Host {
 
 struct LV2PortData
 {
-    LV2PortData(Lilv::Port port) : port(port) {}
+    LV2PortData(Lilv::Port port) : port(port), min(0), max(0),
+        acceptsParameters(0), index(-1), control_data(0) {}
     Lilv::Port port;
+    float min;
+    float max;
+    bool acceptsParameters;
     int index;
     union {
         float control_data;
