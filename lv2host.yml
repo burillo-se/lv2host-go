@@ -8,7 +8,7 @@ GENERATOR:
   Options:
     SafeStrings: true
   FlagGroups:
-    - {name: LDFLAGS, flags: [-L./lv2host/ -llv2host-c -lstdc++]}
+    - {name: LDFLAGS, flags: [-L./lv2host/build/ -llv2host-c -lstdc++]}
 
 PARSER: 
   IncludePaths: ["/usr/include", "/usr/include/lilv-0", "/usr/lib/gcc/x86_64-linux-gnu/8/include"]
