@@ -202,7 +202,6 @@ void LV2PluginInstance::activate() {
         return;
     instance.activate();
     active = true;
-    currentLatency = 0;
 }
 
 void LV2PluginInstance::deactivate() {
@@ -210,7 +209,6 @@ void LV2PluginInstance::deactivate() {
         return;
     instance.deactivate();
     active = false;
-    currentLatency = 0;
 }
 
 bool LV2PluginInstance::hasLatency() {
@@ -278,9 +276,6 @@ bool LV2PluginInstance::setParameter(std::string sym, float value)
             continue;
         }
         pdata->control_data = value;
-
-        // reset latency
-        currentLatency = 0;
         return true;
     }
     // we couldn't find a port

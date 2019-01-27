@@ -33,7 +33,6 @@ struct LV2PluginInstance
     int latency();
     void recalculateLatency();
     void destroy();
-    unsigned int currentLatency;
     bool active;
     Lilv::Plugin plugin;
     Lilv::Instance instance;
