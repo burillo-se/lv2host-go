@@ -22,7 +22,7 @@ struct LV2PortData
     int index;
     union {
         float control_data;
-        LV2_Atom atom;
+        LV2_Atom_Object atom;
     };
 };
 
