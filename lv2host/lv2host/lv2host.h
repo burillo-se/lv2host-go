@@ -36,10 +36,9 @@ struct LV2PluginInstance
     bool hasLatency();
     int latency();
     void recalculateLatency();
-    void destroy();
     bool active;
     Lilv::Plugin plugin;
-    Lilv::Instance instance;
+    std::shared_ptr<Lilv::Instance> instance;
     Lilv::World &world;
     std::vector<std::shared_ptr<LV2PortData>> controlports;
     std::vector<std::shared_ptr<LV2PortData>> inputports;
@@ -67,7 +66,7 @@ private:
     void recalculateLatency();
     Lilv::World world;
     double sampleRate;
-    std::vector<LV2PluginInstance> plugins;
+    std::vector<std::shared_ptr<LV2PluginInstance>> plugins;
 };
 
 }

@@ -48,17 +48,17 @@ static LV2_URID_Unmap lv2_unmap = {
     /* handle = */ NULL, lv2_urid_unmap
 };
 
-static const LV2_Feature lv2_map_feature = { LV2_URID__map, &lv2_map };
-static const LV2_Feature lv2_unmap_feature = { LV2_URID__unmap, &lv2_unmap };
+static LV2_Feature lv2_map_feature = { LV2_URID__map, &lv2_map };
+static LV2_Feature lv2_unmap_feature = { LV2_URID__unmap, &lv2_unmap };
 
-static LV2_Feature const* const features[] = {
+static LV2_Feature * const features[] = {
     &lv2_map_feature,
     &lv2_unmap_feature,
     NULL
 };
 
 LV2PluginInstance::LV2PluginInstance(Lilv::World &world, Lilv::Plugin plugin, double sampleRate) :
-    plugin(plugin.me), instance(lilv_plugin_instantiate(plugin, sampleRate, features)), world(world)
+    plugin(plugin.me), instance(Lilv::Instance::create(plugin, sampleRate, features)), world(world)
 {
     const unsigned n_ports = plugin.get_num_ports();
     unsigned int n_inputs = 0;
@@ -115,7 +115,7 @@ LV2PluginInstance::LV2PluginInstance(Lilv::World &world, Lilv::Plugin plugin, do
             n_inputs++;
 
             // don't connect the port just yet
-            instance.connect_port(pi, nullptr);
+            instance->connect_port(pi, nullptr);
         } else if (audio && output) {
             outputports.emplace_back(new LV2PortData(p));
             auto &data = outputports.back();
@@ -124,7 +124,7 @@ LV2PluginInstance::LV2PluginInstance(Lilv::World &world, Lilv::Plugin plugin, do
             n_outputs++;
 
             // don't connect the port just yet
-            instance.connect_port(pi, nullptr);
+            instance->connect_port(pi, nullptr);
         } else if (control && input){
             controlports.emplace_back(new LV2PortData(p));
             auto &data = controlports.back();
@@ -138,7 +138,7 @@ LV2PluginInstance::LV2PluginInstance(Lilv::World &world, Lilv::Plugin plugin, do
             data->max = max_values[pi];
             // connect port to data
 
-            instance.connect_port(pi, &data->control_data);
+            instance->connect_port(pi, &data->control_data);
         } else if (control && output){
             controlports.emplace_back(new LV2PortData(p));
             auto &data = controlports.back();
@@ -147,7 +147,7 @@ LV2PluginInstance::LV2PluginInstance(Lilv::World &world, Lilv::Plugin plugin, do
             data->control_data = default_values[pi];
             // connect port to data
 
-            instance.connect_port(pi, &data->control_data);
+            instance->connect_port(pi, &data->control_data);
         } else if (atom) {
             atomports.emplace_back(new LV2PortData(p));
             auto &data = atomports.back();
@@ -156,7 +156,7 @@ LV2PluginInstance::LV2PluginInstance(Lilv::World &world, Lilv::Plugin plugin, do
             data->atom = {};
             // connect port to data
 
-            instance.connect_port(pi, &data->atom);
+            instance->connect_port(pi, &data->atom);
         } else if (!optional)
             goto skip;
 
@@ -195,24 +195,34 @@ skip:
 }
 
 LV2PluginInstance::~LV2PluginInstance() {
-
-}
-
-void LV2PluginInstance::destroy() {
-    lilv_instance_free(instance);
+    // disconnect all ports
+    deactivate();
+    for (auto &p : inputports) {
+        instance->connect_port(p->index, nullptr);
+    }
+    for (auto &p : outputports) {
+        instance->connect_port(p->index, nullptr);
+    }
+    for (auto &p : controlports) {
+        instance->connect_port(p->index, nullptr);
+    }
+    for (auto &p : atomports) {
+        instance->connect_port(p->index, nullptr);
+    }
+    lilv_instance_free(instance->me);
 }
 
 void LV2PluginInstance::activate() {
     if (active)
         return;
-    instance.activate();
+    instance->activate();
     active = true;
 }
 
 void LV2PluginInstance::deactivate() {
     if (!active)
         return;
-    instance.deactivate();
+    instance->deactivate();
     active = false;
 }
 
@@ -244,23 +254,23 @@ void LV2PluginInstance::recalculateLatency() {
     float out = 0;
 
     for (auto &p : inputports) {
-        instance.connect_port(p->index, &silence);
+        instance->connect_port(p->index, &silence);
     }
     for (auto &p : outputports) {
-        instance.connect_port(p->index, &out);
+        instance->connect_port(p->index, &out);
     }
 
     // control ports are already connected, so just run
     // for 0 samples
 
-    instance.run(0);
+    instance->run(0);
 
     // disconnect everything back
     for (auto &p : inputports) {
-        instance.connect_port(p->index, nullptr);
+        instance->connect_port(p->index, nullptr);
     }
     for (auto &p : outputports) {
-        instance.connect_port(p->index, nullptr);
+        instance->connect_port(p->index, nullptr);
     }
 }
 
@@ -319,10 +329,6 @@ LV2Host::~LV2Host()
 
 void LV2Host::reset()
 {
-    deactivate();
-    for (auto &p : plugins)
-        p.destroy();
-
     plugins.clear();
 }
 
@@ -338,7 +344,7 @@ bool LV2Host::addPluginInstance(std::string uri)
         return false;
     }
 
-    plugins.emplace_back(world, p, sampleRate);
+    plugins.emplace_back(new LV2PluginInstance(world, p, sampleRate));
 
     lilv_node_free(uri_node);
 
@@ -353,35 +359,35 @@ bool LV2Host::setPluginParameter(unsigned int index, std::string sym, float valu
         return false;
     }
 
-    auto &plugin = plugins.at(index);
+    auto plugin = plugins.at(index);
 
-    return plugin.setParameter(sym, value);
+    return plugin->setParameter(sym, value);
 }
 
 void LV2Host::processBuffer(float *left, float *right, unsigned int nSamples)
 {
     float *ptrs[] = {left, right};
 
-    for (auto &plugin : plugins) {
+    for (auto plugin : plugins) {
         int i_idx = 0, o_idx = 0;
 
         // connect audio ports to our buffers
-        for (auto &port : plugin.inputports) {
-            plugin.instance.connect_port(port->index, ptrs[i_idx++]);
+        for (auto port : plugin->inputports) {
+            plugin->instance->connect_port(port->index, ptrs[i_idx++]);
         }
-        for (auto &port : plugin.outputports) {
-            plugin.instance.connect_port(port->index, ptrs[o_idx++]);
+        for (auto port : plugin->outputports) {
+            plugin->instance->connect_port(port->index, ptrs[o_idx++]);
         }
 
         // process audio
-        plugin.instance.run(nSamples);
+        plugin->instance->run(nSamples);
 
         // disconnect audio ports from our buffers
-        for (auto &port : plugin.inputports) {
-            plugin.instance.connect_port(port->index, nullptr);
+        for (auto port : plugin->inputports) {
+            plugin->instance->connect_port(port->index, nullptr);
         }
-        for (auto &port : plugin.outputports) {
-            plugin.instance.connect_port(port->index, nullptr);
+        for (auto port : plugin->outputports) {
+            plugin->instance->connect_port(port->index, nullptr);
         }
     }
 }
@@ -405,18 +411,18 @@ void LV2Host::listPluginParameters(unsigned int index)
         return;
     }
 
-    auto &pi = plugins.at(index);
+    auto pi = plugins.at(index);
 
     std::cout << "Listing plugin parameters for: "
-              << pi.plugin.get_name().as_string() << " "
-              << pi.plugin.get_uri().as_string() << std::endl;
+              << pi->plugin.get_name().as_string() << " "
+              << pi->plugin.get_uri().as_string() << std::endl;
 
-    unsigned int n_ports = pi.plugin.get_num_ports();
+    unsigned int n_ports = pi->plugin.get_num_ports();
     float *min_values = new float[n_ports];
     float *max_values = new float[n_ports];
     float *default_values = new float[n_ports];
 
-    pi.plugin.get_port_ranges_float(min_values, max_values, default_values);
+    pi->plugin.get_port_ranges_float(min_values, max_values, default_values);
 
     LilvNode *lv2_InputPort = world.new_uri(LV2_CORE__InputPort);
     LilvNode *lv2_OutputPort = world.new_uri(LV2_CORE__OutputPort);
@@ -426,8 +432,8 @@ void LV2Host::listPluginParameters(unsigned int index)
     LilvNode *lv2_AtomPort = world.new_uri(LV2_ATOM__AtomPort);
     LilvNode *lv2_connectionOptional = world.new_uri(LV2_CORE__connectionOptional);
 
-    for (unsigned int p = 0; p < pi.plugin.get_num_ports(); p++) {
-        auto port = pi.plugin.get_port_by_index(p);
+    for (unsigned int p = 0; p < pi->plugin.get_num_ports(); p++) {
+        auto port = pi->plugin.get_port_by_index(p);
 
         Lilv::Node name = port.get_name();
         Lilv::Node symbol = port.get_symbol();
@@ -475,9 +481,9 @@ void LV2Host::listPluginParameters(unsigned int index)
     }
 
     // check if plugin has latency
-    if (pi.plugin.has_latency()) {
+    if (pi->plugin.has_latency()) {
         std::cout << "Plugin has latency!" << std::endl;
-        int index = pi.plugin.get_latency_port_index();
+        int index = pi->plugin.get_latency_port_index();
 
         std::cout << "\tLatency port: " << index << std::endl;
     }
@@ -499,8 +505,8 @@ size_t LV2Host::numPlugins() const {
 
 bool LV2Host::hasLatency()
 {
-    for (auto &p : plugins) {
-        if (p.hasLatency())
+    for (auto p : plugins) {
+        if (p->hasLatency())
             return true;
     }
     return false;
@@ -512,26 +518,26 @@ int LV2Host::latency()
         return 0;
     int l = 0;
 
-    for (auto &p : plugins) {
-        if (!p.hasLatency())
+    for (auto p : plugins) {
+        if (!p->hasLatency())
             continue;
-        p.recalculateLatency();
-        l += p.latency();
+        p->recalculateLatency();
+        l += p->latency();
     }
     return l;
 }
 
 void LV2Host::activate()
 {
-    for (auto &p : plugins) {
-        p.activate();
+    for (auto p : plugins) {
+        p->activate();
     }
 }
 
 void LV2Host::deactivate()
 {
-    for (auto &p : plugins) {
-        p.deactivate();
+    for (auto p : plugins) {
+        p->deactivate();
     }
 }
 
