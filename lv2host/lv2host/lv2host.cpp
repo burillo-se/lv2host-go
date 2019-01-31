@@ -216,6 +216,8 @@ void LV2PluginInstance::activate() {
     if (active)
         return;
     instance->activate();
+    // run for 0 samples
+    instance->run(0);
     active = true;
 }
 
